@@ -4,7 +4,7 @@ import os
 import glob
 
 
-path = '/data/local/savin/lwa/lwafiles/DD002_90[3,4]*'
+path = '/data/local/savin/lwa/lwafiles/DD002_8071*'
 
 dirs = sorted(glob.glob(path))
 

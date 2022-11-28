@@ -42,10 +42,12 @@ def main(filename):
     # The DM is currently encoded in the target name
     dm = name.split('_DM', 1)[1]
     dm = dm.split('_', 1)[0]
-    dm = float(dm)
-    
+    #dm = float(dm)
+    dm = dm.zfill(3)
+
     # The "short name" is just FRB+the DM
-    sname = 'FRB%3.0f' % dm
+    #sname = 'FRB%3.0f' % dm
+    sname = 'FRB'+dm
 
     # String versions of the coordinates
     ra_str = AstroAngle(ra, unit='hourangle')
@@ -64,6 +66,8 @@ def main(filename):
     
     os.chdir(DIR_PATH)
     t0 = time.time()
+
+    print(drxfile)
     
     
     os.system(f"/usr/local/extensions/Pulsar/writePsrfits2DMulti.py --source={sname} --ra={ra_str} --dec={dec_str} --nchan=4096 --nsblk=16384 --yes {dm} {drxfile} > writepsrfits.out")
@@ -99,7 +103,7 @@ if __name__ == '__main__':
                         help='dispersion measure; pc/cm^3')
     args = parser.parse_args()
     """
-    path = "/data/network/recent_data/savin/DD002_901[7,9]*.tgz"
+    path = "/data/network/recent_data/savin/DD002_8071*.tgz"
     files = sorted(glob.glob(path))
     print (files)
     for filename in files:

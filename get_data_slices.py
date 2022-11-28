@@ -15,10 +15,18 @@ from matplotlib import pyplot as plt
 from utils import comp_bp, flag_rfi_time, boxcar_search, get_cand_list, plot_events, matchFilter_search, calc_triggerlag  
 from dedispersion import incoherent, delay
 import matplotlib
+import tqdm as tq
 matplotlib.use('Agg')
 
 
 _fnRE = re.compile('.*_b(?P<beam>[1-4])(t(?P<tuning>[12]))?_.*\.fits')
+
+
+#Edit this list each time to get the slices
+
+
+time_windows = [949290, 1258727, 1336750, 1632407, 1632408, 1664010, ]
+
 
 def main(args):
     # Parse command line options
@@ -27,27 +35,13 @@ def main(args):
     #opening a directory to save image candidates
 
     dirname = os.path.dirname(filenames[0])
-    outdir1 = os.path.join(dirname, 'Images_box')
-    outdir2 = os.path.join(dirname, 'Images_match')
-    #outdir3 = os.path.join(dirname, 'data_slices')
-    try:
-        os.mkdir(outdir1)
-    except OSError:
-        print (f"{outdir1} directory already exists")
-
-    try:
-        os.mkdir(outdir2)
-    except OSError:
-        print (f"{outdir2} directory already exists")
     
-    #try:
-    #    os.mkdir(outdir3)
-    #except OSError:
-    #    print (f"{outdir3} directory already exists")
-        
-    #text file to save candidates
-    file_cand1 = open(outdir1+"/box_candidates.txt","w")
-    file_cand2 = open(outdir2+"/match_candidates.txt","w")
+    outdir = os.path.join(dirname, 'data_slices')
+    try:
+        os.mkdir(outdir)
+    except OSError:
+        print (f"{outdir} directory already exists")
+       
 
 
     # Open the file and load in basic information about the observation's goal
@@ -104,34 +98,6 @@ def main(args):
             data_products = ['I', 'Q', 'U', 'V']
         nChunks = len(hdulist[1].data)
         
-        """
-        ## File cross-validation to make sure that everything is in order
-        try:
-            validationPass = True
-            for keyword in ('sourceName', 'ra', 'dec', 'epoch', 'tStart', 'srate', 'LFFT', 'tInt', 'tSubs', 'nPol', 'nChunks'):
-                keywordOld = keyword+"Old"
-                valid = eval("%s == %s" % (keyword, keywordOld))
-                if not valid:
-                    print("ERROR:  Detail '%s' of %s does not match that of the first file" % (keyword, os.path.basename(filename)))
-                    print("ERROR:  Aborting")
-                    validationPass = False
-
-            if not validationPass:
-                continue
-
-        except NameError as e:
-            sourceNameOld = sourceName
-            raOld = ra
-            decOld = dec
-            epochOld = epoch
-            tStartOld = tStart
-            srateOld = srate
-            LFFTOld = LFFT
-            tIntOld = tInt
-            tSubsOld = tSubs
-            nPolOld = nPol
-            nChunksOld = nChunks
-        """
 
 
         ## Pre-process the start time
@@ -180,8 +146,6 @@ def main(args):
         dur =  nChunks # Number of sub integrations to load the data
         
 
-        # Different bin sizes for boxcar filtering
-        width_search = [20, 40, 80, 120, 200, 400, 800, 1600, 3200]
         
         #Initialize the big array to capture data from different sub integrations
         wfdata = np.zeros((dur*nSubs, LFFT, len(data_products)), dtype = np.float32)
@@ -191,7 +155,7 @@ def main(args):
         print("Collecting data")
         t0 = time.time()
         ## Read in the data and apply what ever scaling is needed
-        for i in range(skip, skip+dur):
+        for i in tq.tqdm(range(skip, skip+dur)):
             ### Access the correct subintegration
             subint = hdulist[1].data[i]
 
@@ -239,100 +203,33 @@ def main(args):
         
         #Correcting the bandpass
         wfdata /= bp
-
+        
+        print("Finished bandpass correction")
 
         #Flagging bad rfi and time chunks
         wfdata = flag_rfi_time(wfdata,nSubs)
 
+        print("Finished RFI Flagging")
+
         #Apply incoherent dedispersion
-        wfdata_disp = incoherent(freq, wfdata, tInt, dm, boundary='wrap', fill_value=np.nan)
+        wfdata = incoherent(freq, wfdata, tInt, dm, boundary='wrap', fill_value=np.nan)
         
         t2 = time.time()
         print(f"Bandpass, flagging, dedispersion  {t2-t1} s")
         
-        #Averging the data across channels for box filtering
-        tseries = np.mean(wfdata_disp,axis = 1)
+        maxind = wfdata.shape[0]
 
-        #Looking for pulses in the box car
-        # From box car
-        filt_dat1 =  boxcar_search(tseries, width_search)
+        print('Starting data slicing')
         
-        # From match filtering function
-        filt_dat2 = matchFilter_search(tseries, width_search, tInt*1e+3)
+        for twin in time_windows:
+            slicename = filename+'_'+str(twin)
+            slicename = os.path.join(outdir, slicename)
+            print(slicename)
+            np.savez(slicename, wfdat = wfdata[max(0,twin-5000):min(twin+5000,maxind),:], tdat = tdat[max(0,twin-5000):min(twin+5000, maxind)], freq = freq, dm = dm, ra = ra, dec = dec, source = sourceName, cfreq = cFreq, srate = srate, lfft = LFFT, tint = tInt)
+
 
         t3 = time.time()
-        print(f"Averaging and Smoothening takes {t3-t2} s")
-        
-
-        #Calling the plotting class
-        #pob1 = plot_events(wfdata, tdat, freq, os.path.basename(filename), outdir1, outdir3)
-        
-        pob1 = plot_events(wfdata, wfdata_disp, tdat, freq, os.path.basename(filename), outdir1, mode = 'box')
-        
-        print('Starting Box candidate search')
-        #Candidate filtering and plotting 
-        for b,bin in enumerate(width_search):
-            
-            std = np.std(filt_dat1[b,:])
-            mean = np.mean(filt_dat1[b,:])
-            #print(filt_dat1[b,:].max(), mean, std)
-            snr = (filt_dat1[b,:] - mean)/std
-            
-            if args.metafile and exp_time < (nChunks*tSubs):
-
-                # Plotting the location where pulse is expected to show up irrespective of the sigma values
-                pob1.plot(filt_dat1[b,:], snr[exp_samp], bin, max(0, exp_samp-5000), min(exp_samp+6000, wfdata.shape[0]), True)
-
-            good_sig = np.where((snr > 4.0))[0]
-                
-            if  len(good_sig) > 0:
-                best_cand, best_snr  = get_cand_list(good_sig,snr[good_sig])
-                print (f" Number of good sig: {len(good_sig)}, Number of best_sig: {len(best_cand)}, Bin size :{bin}" )
-
-                for ind, cand in enumerate(best_cand):
-                    # Getting each good candidate and making a plot for each of them
-                    pob1.plot(filt_dat1[b,:], best_snr[ind], bin, max(0, cand-5000), min(cand+6000, wfdata.shape[0]), False)
-                    file_cand1.write(f" {os.path.basename(filename)} {cand}  {best_snr[ind]} {bin} {tdat[cand]} \n")
-        
-        
-        del pob1
-        
-
-        #Calling the plotting class
-        pob2 = plot_events(wfdata, wfdata_disp, tdat, freq, os.path.basename(filename), outdir2, mode = 'filter')
-
-        print('Starting Match filtering search')
-
-        #Candidate filtering and plotting 
-        for b,bin in enumerate(width_search):
-            std = np.std(filt_dat2[b,:])
-            mean = np.mean(filt_dat2[b,:])
-            #print(filt_dat2[b,:].max(), mean, std)
-            snr = (filt_dat2[b,:] - mean)/std
-            
-            if args.metafile and exp_time < (nChunks*tSubs):
-
-                # Plotting the location where pulse is expected to show up irrespective of the sigma values
-                pob2.plot(filt_dat2[b,:], snr[exp_samp], bin, max(0, exp_samp-5000), min(exp_samp+6000, wfdata.shape[0]), True)
-
-
-            good_sig = np.where((snr > 4.0))[0]
-                
-            if  len(good_sig) > 0:
-                best_cand, best_snr  = get_cand_list(good_sig,snr[good_sig])
-                print (f" Number of good sig: {len(good_sig)}, Number of best_sig: {len(best_cand)}, Bin size :{bin}" )
-
-                for ind, cand in enumerate(best_cand):
-                    # Getting each good candidate and making a plot for each of them
-                    pob2.plot(filt_dat2[b,:], best_snr[ind], bin, max(0, cand-5000), min(cand+6000, wfdata.shape[0]), False)
-                    file_cand2.write(f" {os.path.basename(filename)} {cand}  {best_snr[ind]} {bin} {tdat[cand]} \n")
-
-        
-        
-        del pob2
-
-        t4 = time.time()
-        print (f"Collection of candidates and plotting them takes {t4-t3} s")
+        print (f"Data slicing took {t3-t2} s")
         del wfdata
 
 
@@ -342,8 +239,6 @@ def main(args):
         hdulist.close()
         print(f"Finished processing {filename}")
     
-    file_cand1.close()
-    file_cand2.close()
 
 
 if  __name__ == "__main__": 

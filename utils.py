@@ -77,11 +77,32 @@ def boxcar_search(tseries, width):
     
     return boxdat
 
-"""
+
+def boxcar_plot(tseries, width):
+
+    """
+    Returns a boxcar average series for different bin widths
+
+    """
+    datp = len(tseries)
+    boxdat = np.zeros((len(width),datp))
+    for k,bin in enumerate(width):
+        #winsize = int(bin/2.0)
+        for i in range(len(tseries)):
+            #mn = max([0, i-winsize])
+            mx = min([i+bin, datp])
+            if (i+bin) <= datp:
+                boxdat[k,i] = np.mean(tseries[i:mx])
+            else:
+                boxdat[k,i] = boxdat[k,datp-bin]
+    return boxdat
+
+
+
 def boxcar_wf(wf, bin):
 
     
-    Apply a boxcar filter on a waterfall plot
+    #Apply a boxcar filter on a waterfall plot
 
 
     datp = wf.shape[0] #length of the time series
@@ -89,10 +110,13 @@ def boxcar_wf(wf, bin):
     #Collecting the averaged waterfall into a new waterfall array
     for i in range(datp):
         mx = min([i+bin, datp])
-        boxdat_wf[i,:] = np.mean(wf[i:mx,:], axis = 0)
+        if (i+bin) <= datp: 
+            boxdat_wf[i,:] = np.mean(wf[i:mx,:], axis = 0)
+        else:
+            boxdat_wf[i,:] = boxdat_wf[datp-bin,:] 
 
     return boxdat_wf
-"""
+
 
 
 
@@ -141,14 +165,15 @@ class plot_events:
     """
     Class to plot the candidate files after the FRB search
     """
-    def __init__(self, wfdata, tdat, freq, filename, outdir):
+    def __init__(self, wfdata, wfdata_cor,  tdat, freq, filename, outdir, mode):
         
         self.wfdata = wfdata
+        self.wfdata_cor = wfdata_cor
         self.freq = freq/1e+6
         self.tdat = tdat
         self.filename = filename
         self.outdir = outdir
-        #self.datadir = datadir
+        self.mode = mode
 
     def rebin_data(self, wfcut, tcut,  avgf = 10):
 
@@ -173,55 +198,130 @@ class plot_events:
             tavg[t] = np.mean(tcut[avgf*t:avgf*(t+1)])
 
         return wfavg, freq_avg, tavg
+    
+    def smooth_wf(self, wf, bin, tint):
+        # conducting some smoothing on the 
+        # boxcar averaging and filterbanking
+        # based on the candidate
 
+        if self.mode == 'box':
+            return boxcar_wf(wf, bin)
+        else:
+            return matchFilter_wf(wf, bin, tint)
+    
+    def fourier_enhance(self, wf):
+        #Conducting some fourier enhancing of the data
 
+        wf_fft = np.fft.fft2(wf)
+        amp = np.abs(wf_fft)**1.3
+        phase = np.angle(wf_fft)
+        wf_fft_win = amp*(np.exp(1.0j*phase))
+        wf_ifft = np.fft.ifft2(wf_fft_win)
+        return np.abs(wf_ifft)
 
     def plot(self, filt_time, snr, bin_width, tstart, tstop, exp_cand = False):
         
+        #Getting the filtered data parameters
+        filt_cut = filt_time[tstart:tstop]
+        tInt = tcut[1] - tcut[0]
+        
+        #Uncorrected data
         wfcut = self.wfdata[tstart:tstop,:] # Getting a section of data needed for plotting
         tcut = self.tdat[tstart:tstop]
 
-        #if  filter == 'box':                    
-        #    wf_smth = boxcar_wf(wfcut, bin_width)
-        #else:
-        #    wf_smth = matchFilter_wf(wfcut, bin_width, tInt) 
+        #Corrected data
+        wfcut_cor = self.wfdata_cor[tstart:tstop,:]
 
+        #Smoothened data
+        wfcut_smth = self.smooth_wf(wfcut_cor, bin_width, tInt)
         
+        #Fourier enhanced data
+        wfcut_fe = self.fourier_enhance(wfcut_cor)
+
         #outname_ar = self.datadir+'/%s_%0.1f_%0.1f_%0.1f' % (self.filename, tstart+5000, snr, bin_width)  
         #np.savez(outname_ar, wf =  wfcut.astype('float32'), time = tcut.astype('float32'), freq = self.freq.astype('float32'))
-
+        
+        #Needs to do some averaging before plotting the data
+        
+        #Uncorrected data
         wfplt, freqplt, tplt = self.rebin_data(wfcut, tcut, avgf = 20) #change avgf if needed to try another one
         
-        filt_cut = filt_time[tstart:tstop]
-        #tfilt_cut  = self.tdat[tstart:tstop]
-        tInt = tcut[1] - tcut[0]
+        #Corrected data
+        wfplt_cor, freqplt_cor, tplt_cor = self.rebin_data(wfcut_cor, tcut, avgf = 20)
+ 
+        #Smoothened data
+        wfplt_smth, freqplt_smth, tplt_smth = self.rebin_data(wfcut_smth, tcut, avgf = 20) 
+        
+        #FE data
+        wfplt_fe, freqplt_fe, tplt_fe = self.rebin_data(wfcut_fe, tcut, avgf = 20)
 
-        # plotting 2 panels of wfdata and filtered time series
-        plt.subplot(2,1,1)
-        plt.pcolormesh(wfplt.T, cmap = 'viridis')
-        plt.xlabel("Time (s)")
-        plt.ylabel("Frequency (MHz)")
-        if not exp_cand:
-           plt.title(f"SNR: {round(snr,1)}, Bin width: {round(bin_width*tInt*1e+3)} ms")
-        else:
-           plt.title(f"Expected cand SNR: {round(snr,1)}, Bin width: {round(bin_width*tInt*1e+3)} ms")
 
+        
+        
+        # plotting 4 panels of wfdata and filtered time series
+        fig, axs = plt.subplots(2, 4, constrained_layout=True, figsize = (8,12))
+        
+        #Getting the label info for the waterfall plots
 
         xr = np.arange(0, tplt.shape[0], 100)
         yr = np.arange(0, freqplt.shape[0], 100)
         tplt = np.round(tplt,1)
         freqplt = np.round(freqplt,1)
         
-        plt.xticks(xr, tplt[xr])
-        plt.yticks(yr, freqplt[yr])
+        
+        axs[0,0].pcolormesh(wfplt.T, cmap = 'viridis')
+        axs[0,0].set_xlabel("Time (s)")
+        axs[0,0].set_ylabel("Frequency (MHz)")
+        axs[0,0].set_xticks(xr, tplt[xr])
+        axs[0,0].set_yticks(yr, freqplt[yr])
+        
+        
+        axs[0,1].plot(tplt, np.mean(wfplt, axis = 1))
+        axs[0,1].set_xlabel("Time (s)")
+        axs[0,1].set_ylabel("Power (a.u.)")
+        
 
-        plt.subplot(2,1,2)
-        plt.plot(tcut, filt_cut)
-        plt.xlabel("Time (s)")
-        plt.ylabel("Power (a.u.)")
-        #plt.xticks(xr, tplt[xr])
+        axs[1,0].pcolormesh(wfplt_cor.T, cmap = 'viridis')
+        axs[1,0].set_xlabel("Time (s)")
+        axs[1,0].set_ylabel("Frequency (MHz)")
+        axs[1,0].set_xticks(xr, tplt_cor[xr])
+        axs[1,0].set_yticks(yr, freqplt_cor[yr])
 
-        plt.tight_layout()
+
+        axs[1,1].plot(tplt_cor, np.mean(wfplt_cor, axis = 1))
+        axs[1,1].set_xlabel("Time (s)")
+        axs[1,1].set_ylabel("Power (a.u.)")
+
+        
+        axs[2,0].pcolormesh(wfplt_smth.T, cmap = 'viridis')
+        axs[2,0].set_xlabel("Time (s)")
+        axs[2,0].set_ylabel("Frequency (MHz)")
+        axs[2,0].set_xticks(xr, tplt_smth[xr])
+        axs[2,0].set_yticks(yr, freqplt_smth[yr])
+
+        #Here we are just plotting the non-average smoothened time series passed to this class
+        axs[2,1].plot(tcut, filt_cut)
+        axs[2,1].set_xlabel("Time (s)")
+        axs[2,1].set_ylabel("Power (a.u.)")
+
+        axs[3,0].pcolormesh(wfplt_fe.T, cmap = 'viridis')
+        axs[3,0].set_xlabel("Time (s)")
+        axs[3,0].set_ylabel("Frequency (MHz)")
+        axs[3,0].set_xticks(xr, tplt_fe[xr])
+        axs[3,0].set_yticks(yr, freqplt_fe[yr])
+
+
+        axs[3,1].plot(tplt_fe, np.mean(wfplt_fe, axis = 1))
+        axs[3,1].set_xlabel("Time (s)")
+        axs[3,1].set_ylabel("Power (a.u.)")
+
+
+        if not exp_cand:
+           fig.suptitle(f"SNR: {round(snr,1)}, Bin width: {round(bin_width*tInt*1e+3,1)} ms")
+        else:
+           fig.suptitle(f"Expected cand SNR: {round(snr,1)}, Bin width: {round(bin_width*tInt*1e+3, 1)} ms")
+
+
         # saving figure
         outname_img = self.outdir+'/%s_%0.1f_%0.1f_%0.1f.png' % (self.filename, tstart+5000, snr, bin_width)
         plt.savefig(outname_img, dpi = 150)
@@ -268,7 +368,7 @@ def matchFilter_search(tseries, width, tInt):
 
     return boxdat
 
-"""
+
 def matchFilter_wf(wf, bin, tInt):
 
     
@@ -295,7 +395,7 @@ def matchFilter_wf(wf, bin, tInt):
             match_wf[:,i] = wf[:,datp-bin]
 
     return match_wf.T
-"""
+
 
 
 def calc_triggerlag(filename):

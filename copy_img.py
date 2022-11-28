@@ -2,7 +2,7 @@ import sys
 import glob
 import os
 
-path  = "/data/local/savin/lwa/lwafiles/DD002_802[3,4,5,6,7,8,9]*"
+path  = "/data/local/savin/lwa/lwafiles/DD002_8071*"
 
 dirlist = sorted(glob.glob(path))
 
