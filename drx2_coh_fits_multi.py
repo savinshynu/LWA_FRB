@@ -72,7 +72,6 @@ def main(filename):
     
     os.system(f"/usr/local/extensions/Pulsar/writePsrfits2DMulti.py --source={sname} --ra={ra_str} --dec={dec_str} --nchan=4096 --nsblk=16384 --yes {dm} {drxfile} > writepsrfits.out")
 
-    #os.system(f"/usr/local/extensions/Pulsar/writePsrfits2D.py --source={sname} --ra={ra_str} --dec={dec_str} --nchan=4096 --nsblk=16384  {dm} {drxfile} > writepsrfits.out")
 
 
     os.system("python /home/pulsar/bin/check_writepsrfits_result.py writepsrfits.out")
@@ -103,7 +102,7 @@ if __name__ == '__main__':
                         help='dispersion measure; pc/cm^3')
     args = parser.parse_args()
     """
-    path = "/data/network/recent_data/savin/DD002_8071*.tgz"
+    path = "/data/network/recent_data/savin/DD002_91[1,2]*.tgz"
     files = sorted(glob.glob(path))
     print (files)
     for filename in files:

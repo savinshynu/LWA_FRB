@@ -82,11 +82,11 @@ def incoherent(freq, waterfall, tInt, dm, boundary='wrap', fill_value=numpy.nan)
         
     # Compute the dispersive delay for the given frequency range
     tDelay = delay(freq, dm)
-    #print(tDelay)    
+    print(tDelay)    
     # Convert the delays to integration periods
     tDelay = numpy.round(tDelay / tInt)
     tDelay = tDelay.astype(numpy.int32)
-    #print(tDelay)
+    print(tDelay)
 
     # Roll the various frequency bins by the right amount
     ddWaterfall = waterfall*0.0
@@ -96,7 +96,7 @@ def incoherent(freq, waterfall, tInt, dm, boundary='wrap', fill_value=numpy.nan)
             ddWaterfall[-d:,i] = fill_value
             
     # Return
-    return ddWaterfall
+    return ddWaterfall, tDelay
 
 
 def get_coherent_sample_size(central_freq, sample_rate, dm):
