@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-
+"""
+Converting the spectrometer data to the fits file format
+"""
 import os
 import git
 import sys

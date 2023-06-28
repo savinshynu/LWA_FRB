@@ -1,3 +1,9 @@
+"""
+A bunch of utilities used in the conducting FRB search with the fits files
+functions for calculating the bandpass, RFI flagging, smoothening of the data (boxcar and matched filter),
+getting list of candidates and plotting candidates
+
+"""
 import sys
 import numpy as np
 from mad import median_absolute_deviation as mad

@@ -1,6 +1,6 @@
+
 """
-Modified version of writeHDF5fromPSRfits by J.Dowell for collecting data from PSRfits files
-Further bandpass calibration, rfi removal, incoherent dedispersion, collecting candidates and plotting candidates
+Reads a fits file and make some basic plots and prints out the metadata
 """
 
 import sys

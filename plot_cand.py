@@ -1,6 +1,6 @@
 """
 Based on writeHDF5fromPSRfits by J.Dowell
-
+plotting waterfall data and the boxcar averaged time series
 """
 
 import sys

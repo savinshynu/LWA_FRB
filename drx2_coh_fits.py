@@ -106,7 +106,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='build a Makefile for analyzing FRB data from the LWA',
+        description='Conducts a coherent dedispersion, channelization and write out each tuning into a fits files. Also prouduces a combined fits files',
         epilog='NOTE: --source, --ra, --dec, and --dm are only used if a DRX file is given, otherwise the values are automatically extracted from the metadata.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+
+"""
+Conducting FRB searches from multiple observations
+
+"""
 import os
 import glob
 

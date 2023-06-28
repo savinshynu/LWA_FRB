@@ -1,6 +1,8 @@
 """
 Module for calculating dispersion delay due to an ionized ISM and performing
 incoherent/coherent dedispersion.
+
+Take from LSL
 """
 
 # Python2 compatibility

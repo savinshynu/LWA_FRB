@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+"""
+Process multiple raw data
+Conducts a coherent dedispersion, channelization and write out each tuning into a fits files. Also prouduces a combined fits files
+"""
+
 import os
 import glob
 import git

@@ -1,3 +1,7 @@
+"""
+Copying data search results from cluster to hercules machine
+"""
+
 import sys
 import glob
 import os
